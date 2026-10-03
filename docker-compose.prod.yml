@@ -1,0 +1,114 @@
+# Production / VPS compose — PostgreSQL & Redis are EXTERNAL (infra-provided).
+# Usage:
+#   cp .env.prod.example .env.prod
+#   docker compose -f docker-compose.prod.yml --env-file .env.prod up -d --build
+
+name: atrina-baas-prod
+
+services:
+  api:
+    build:
+      context: .
+      dockerfile: infra/docker/Dockerfile.api
+    image: atrina-baas-api:${IMAGE_TAG:-latest}
+    restart: unless-stopped
+    env_file:
+      - ${ENV_FILE:-.env.prod}
+    environment:
+      RUN_MIGRATIONS_ON_START: ${RUN_MIGRATIONS_ON_START:-false}
+      CACHE_CONFIG_ON_START: ${CACHE_CONFIG_ON_START:-true}
+    volumes:
+      - api_storage:/app/storage
+    ports:
+      - "${API_HOST_PORT:-8080}:8080"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    healthcheck:
+      test: ["CMD-SHELL", "php -r \"exit(@file_get_contents('http://127.0.0.1:8080/up')===false?1:0);\""]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 40s
+
+  scheduler:
+    image: atrina-baas-api:${IMAGE_TAG:-latest}
+    restart: unless-stopped
+    env_file:
+      - ${ENV_FILE:-.env.prod}
+    environment:
+      CACHE_CONFIG_ON_START: "false"
+      RUN_MIGRATIONS_ON_START: "false"
+    volumes:
+      - api_storage:/app/storage
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      api:
+        condition: service_healthy
+    entrypoint: ["docker-entrypoint-api.sh"]
+    command:
+      [
+        "sh",
+        "-c",
+        "while true; do php artisan schedule:run --no-interaction; sleep 60; done",
+      ]
+
+  worker:
+    image: atrina-baas-api:${IMAGE_TAG:-latest}
+    restart: unless-stopped
+    env_file:
+      - ${ENV_FILE:-.env.prod}
+    environment:
+      CACHE_CONFIG_ON_START: "false"
+      RUN_MIGRATIONS_ON_START: "false"
+    volumes:
+      - api_storage:/app/storage
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      api:
+        condition: service_healthy
+    entrypoint: ["docker-entrypoint-api.sh"]
+    command: ["php", "artisan", "queue:work", "redis", "--sleep=1", "--tries=3", "--max-time=3600"]
+
+  dashboard:
+    build:
+      context: .
+      dockerfile: infra/docker/Dockerfile.dashboard
+      args:
+        NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL:-http://localhost:8080/api/v1}
+        NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:-http://localhost:3000}
+    image: atrina-baas-dashboard:${IMAGE_TAG:-latest}
+    restart: unless-stopped
+    environment:
+      NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL:-http://localhost:8080/api/v1}
+      NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:-http://localhost:3000}
+    ports:
+      - "${DASHBOARD_HOST_PORT:-3000}:3000"
+    depends_on:
+      api:
+        condition: service_healthy
+
+  caddy:
+    profiles: ["with-caddy"]
+    image: caddy:2.8-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      API_DOMAIN: ${API_DOMAIN:-api.localhost}
+      DASHBOARD_DOMAIN: ${DASHBOARD_DOMAIN:-app.localhost}
+      ACME_EMAIL: ${ACME_EMAIL:-ops@example.com}
+    volumes:
+      - ./infra/docker/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - api
+      - dashboard
+
+volumes:
+  api_storage:
+  caddy_data:
+  caddy_config:

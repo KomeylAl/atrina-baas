@@ -1,0 +1,36 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: atrina-baas-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: atrina_baas_backend
+      POSTGRES_USER: atrina
+      POSTGRES_PASSWORD: atrina
+    ports:
+      - "5432:5432"
+    volumes:
+      - atrina_baas_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U atrina -d atrina_baas_backend"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    container_name: atrina-baas-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - atrina_baas_redis:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  atrina_baas_pgdata:
+  atrina_baas_redis:

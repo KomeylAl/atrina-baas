@@ -1,0 +1,38 @@
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+.zed/
+*.swp
+*.swo
+
+# Secrets — never commit
+.env
+.env.*
+!.env.example
+!**/.env.example
+!.env.prod.example
+!**/.env.production.example
+
+# Dependencies & build
+node_modules/
+vendor/
+.next/
+out/
+dist/
+build/
+public/build/
+public/hot
+
+# Logs & caches
+*.log
+.phpunit.result.cache
+.phpunit.cache/
+coverage/
+.turbo/
+
+# Local tooling
+.cursor/
+.codex/
+auth.json

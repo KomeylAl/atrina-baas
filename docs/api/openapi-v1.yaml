@@ -1,0 +1,560 @@
+openapi: 3.1.0
+info:
+  title: Atrina BaaS Control Plane API
+  version: 1.0.0
+  description: Control-plane and data-plane endpoints through Phase 4 (billing).
+servers:
+  - url: http://localhost:8000/api/v1
+paths:
+  /auth/register:
+    post:
+      summary: Register a platform user
+      tags: [Auth]
+      responses:
+        "201":
+          description: Registered
+  /auth/login:
+    post:
+      summary: Login and receive Bearer token
+      tags: [Auth]
+      responses:
+        "200":
+          description: Authenticated
+  /auth/me:
+    get:
+      summary: Current platform user
+      tags: [Auth]
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200":
+          description: OK
+  /auth/logout:
+    post:
+      summary: Revoke current access token
+      tags: [Auth]
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200":
+          description: Logged out
+  /organizations:
+    get:
+      summary: List organizations for the current user
+      tags: [Organizations]
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200":
+          description: OK
+    post:
+      summary: Create organization
+      tags: [Organizations]
+      security: [{ bearerAuth: [] }]
+      responses:
+        "201":
+          description: Created
+  /organizations/{organizationId}:
+    get:
+      summary: Get organization
+      tags: [Organizations]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: organizationId
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: OK
+    patch:
+      summary: Update organization
+      tags: [Organizations]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: organizationId
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: OK
+  /organizations/{organizationId}/projects:
+    get:
+      summary: List projects
+      tags: [Projects]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: organizationId
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: OK
+    post:
+      summary: Create project with default environments
+      tags: [Projects]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: organizationId
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "201":
+          description: Created
+  /projects/{projectId}:
+    get:
+      summary: Get project
+      tags: [Projects]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: projectId
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: OK
+    patch:
+      summary: Update project
+      tags: [Projects]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: projectId
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: OK
+  /projects/{projectId}/archive:
+    post:
+      summary: Archive project
+      tags: [Projects]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: projectId
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: Archived
+  /projects/{projectId}/environments:
+    get:
+      summary: List environments
+      tags: [Environments]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: projectId
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: OK
+    post:
+      summary: Create environment
+      tags: [Environments]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: projectId
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "201":
+          description: Created
+  /environments/{environmentId}:
+    patch:
+      summary: Update environment
+      tags: [Environments]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: environmentId
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: OK
+  /environments/{environmentId}/credentials:
+    get:
+      summary: List API credentials (no secrets)
+      tags: [Credentials]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: environmentId
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: OK
+    post:
+      summary: Create credential (secret shown once)
+      tags: [Credentials]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: environmentId
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "201":
+          description: Created
+  /credentials/{credentialId}/revoke:
+    post:
+      summary: Revoke credential
+      tags: [Credentials]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: credentialId
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: Revoked
+  /credentials/{credentialId}/rotate:
+    post:
+      summary: Rotate credential
+      tags: [Credentials]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: credentialId
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: Rotated
+  /projects/{projectId}/audit-logs:
+    get:
+      summary: List project audit logs
+      tags: [Audit]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: projectId
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: OK
+  /projects/{projectId}/usage:
+    get:
+      summary: Aggregated usage metrics and quotas (ADR-008)
+      tags: [Usage]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: projectId
+          required: true
+          schema: { type: string, format: uuid }
+        - in: query
+          name: environment_id
+          schema: { type: string, format: uuid }
+        - in: query
+          name: from
+          schema: { type: string, format: date-time }
+        - in: query
+          name: to
+          schema: { type: string, format: date-time }
+      responses:
+        "200":
+          description: OK
+  /environments/{environmentId}/quotas:
+    put:
+      summary: Upsert an environment quota (soft/hard limits)
+      tags: [Usage]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: environmentId
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "201":
+          description: Saved
+  /health/ready:
+    get:
+      summary: Readiness check (database required)
+      tags: [Health]
+      responses:
+        "200":
+          description: Ready
+        "503":
+          description: Degraded
+  /project-auth/signup:
+    post:
+      summary: Project user email/password signup
+      tags: [Project Auth]
+      parameters:
+        - in: header
+          name: X-Atrina-Key
+          required: true
+          schema: { type: string }
+      responses:
+        "201":
+          description: Created
+  /project-auth/login:
+    post:
+      summary: Project user email/password login
+      tags: [Project Auth]
+      parameters:
+        - in: header
+          name: X-Atrina-Key
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: OK
+  /project-auth/otp/request:
+    post:
+      summary: Request phone OTP via SMS.ir
+      tags: [Project Auth]
+      parameters:
+        - in: header
+          name: X-Atrina-Key
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: OK
+  /project-auth/otp/verify:
+    post:
+      summary: Verify phone OTP and issue token
+      tags: [Project Auth]
+      parameters:
+        - in: header
+          name: X-Atrina-Key
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: OK
+  /project-auth/google:
+    post:
+      summary: Google ID token login
+      tags: [Project Auth]
+      parameters:
+        - in: header
+          name: X-Atrina-Key
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: OK
+  /projects/{projectId}/users:
+    get:
+      summary: List project end users
+      tags: [Project Users]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: projectId
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: OK
+  /billing/products:
+    get:
+      summary: List active products for the project environment
+      tags: [Billing]
+      parameters:
+        - in: header
+          name: X-Atrina-Key
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: OK
+  /billing/plans:
+    get:
+      summary: List active plans
+      tags: [Billing]
+      parameters:
+        - in: header
+          name: X-Atrina-Key
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: OK
+  /billing/purchases/verify:
+    post:
+      summary: Verify a store purchase token and grant prepaid entitlement
+      tags: [Billing]
+      parameters:
+        - in: header
+          name: X-Atrina-Key
+          required: true
+          schema: { type: string }
+      security: [{ bearerAuth: [] }]
+      responses:
+        "201":
+          description: Verified and subscription granted
+        "200":
+          description: Idempotent replay of an existing verified purchase
+  /billing/purchases:
+    get:
+      summary: List purchases for the authenticated project user
+      tags: [Billing]
+      parameters:
+        - in: header
+          name: X-Atrina-Key
+          required: true
+          schema: { type: string }
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200":
+          description: OK
+  /billing/subscriptions:
+    get:
+      summary: List subscriptions for the authenticated project user
+      tags: [Billing]
+      parameters:
+        - in: header
+          name: X-Atrina-Key
+          required: true
+          schema: { type: string }
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200":
+          description: OK
+  /billing/subscriptions/{subscriptionId}:
+    get:
+      summary: Get a subscription
+      tags: [Billing]
+      parameters:
+        - in: header
+          name: X-Atrina-Key
+          required: true
+          schema: { type: string }
+        - in: path
+          name: subscriptionId
+          required: true
+          schema: { type: string, format: uuid }
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200":
+          description: OK
+  /billing/entitlements:
+    get:
+      summary: Resolve active entitlements for the authenticated project user
+      tags: [Billing]
+      parameters:
+        - in: header
+          name: X-Atrina-Key
+          required: true
+          schema: { type: string }
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200":
+          description: OK
+  /projects/{projectId}/billing/catalog:
+    get:
+      summary: Control-plane billing catalog
+      tags: [Billing Admin]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: projectId
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: OK
+  /projects/{projectId}/billing/products:
+    post:
+      summary: Create billing product
+      tags: [Billing Admin]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: projectId
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "201":
+          description: Created
+  /projects/{projectId}/billing/products/{productId}/plans:
+    post:
+      summary: Create prepaid plan under a product
+      tags: [Billing Admin]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: projectId
+          required: true
+          schema: { type: string, format: uuid }
+        - in: path
+          name: productId
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "201":
+          description: Created
+  /projects/{projectId}/billing/plans/{planId}/provider-products:
+    post:
+      summary: Map a store SKU to a plan for an environment
+      tags: [Billing Admin]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: projectId
+          required: true
+          schema: { type: string, format: uuid }
+        - in: path
+          name: planId
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "201":
+          description: Created
+  /environments/{environmentId}/billing-providers:
+    put:
+      summary: Upsert encrypted store provider credentials for an environment
+      tags: [Billing Admin]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: environmentId
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "201":
+          description: Saved
+  /projects/{projectId}/billing/purchases:
+    get:
+      summary: List project purchases (control plane)
+      tags: [Billing Admin]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: projectId
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: OK
+  /projects/{projectId}/billing/subscriptions:
+    get:
+      summary: List project subscriptions (control plane)
+      tags: [Billing Admin]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: projectId
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: OK
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: Sanctum

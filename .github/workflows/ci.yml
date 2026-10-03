@@ -1,0 +1,104 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master, develop]
+  pull_request:
+
+jobs:
+  backend:
+    name: Backend (Laravel)
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: atrina_baas_backend_test
+          POSTGRES_USER: atrina
+          POSTGRES_PASSWORD: atrina
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U atrina -d atrina_baas_backend_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    defaults:
+      run:
+        working-directory: atrina-baas-backend
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.4"
+          extensions: mbstring, pdo_pgsql, pgsql, redis, bcmath, intl
+          coverage: none
+
+      - name: Install Composer dependencies
+        run: composer install --no-interaction --prefer-dist --optimize-autoloader
+
+      - name: Prepare environment
+        run: |
+          cp .env.example .env
+          php artisan key:generate
+          # PHPUnit uses in-memory SQLite via phpunit.xml; keep .env valid for artisan.
+
+      - name: Run Pint (dirty check)
+        run: vendor/bin/pint --test
+
+      - name: Run tests
+        run: php artisan test
+
+  frontend:
+    name: Frontend (Next.js)
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: atrina-baas-frontend
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: atrina-baas-frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Build
+        run: npm run build
+
+  sdk-js:
+    name: SDK (JavaScript)
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: packages/sdk-js
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install and typecheck
+        run: |
+          npm install
+          npm run typecheck
+          npm run build

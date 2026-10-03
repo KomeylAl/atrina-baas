@@ -1,0 +1,38 @@
+# syntax=docker/dockerfile:1.7
+# FrankenPHP serves Laravel on :8080 without a separate nginx apt install.
+
+FROM composer:2 AS vendor
+WORKDIR /app
+COPY atrina-baas-backend/composer.json atrina-baas-backend/composer.lock ./
+RUN composer install \
+    --no-dev \
+    --no-scripts \
+    --no-interaction \
+    --prefer-dist \
+    --optimize-autoloader
+COPY atrina-baas-backend/ .
+ENV APP_KEY=base64:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=
+RUN composer dump-autoload --optimize --no-dev --no-interaction --no-scripts
+
+FROM dunglas/frankenphp:1-php8.4-bookworm AS app
+
+RUN install-php-extensions pdo_pgsql pgsql redis intl bcmath zip opcache
+
+WORKDIR /app
+COPY --from=vendor /app /app
+COPY infra/docker/docker-entrypoint-api.sh /usr/local/bin/docker-entrypoint-api.sh
+COPY infra/docker/Caddyfile.api /etc/caddy/Caddyfile
+
+RUN mkdir -p storage/framework/{cache,sessions,views} storage/logs bootstrap/cache \
+    && chown -R www-data:www-data storage bootstrap/cache \
+    && chmod +x /usr/local/bin/docker-entrypoint-api.sh
+
+ENV APP_ENV=production \
+    APP_DEBUG=false \
+    RUN_MIGRATIONS_ON_START=false \
+    CACHE_CONFIG_ON_START=true \
+    SERVER_NAME=:8080
+
+EXPOSE 8080
+ENTRYPOINT ["docker-entrypoint-api.sh"]
+CMD ["frankenphp", "run", "--config", "/etc/caddy/Caddyfile"]
