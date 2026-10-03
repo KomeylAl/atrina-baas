@@ -10,7 +10,7 @@ set -a
 source "$ENV_FILE"
 set +a
 
-API_BASE="${SMOKE_API_BASE:-http://127.0.0.1:${API_HOST_PORT:-8080}}"
+API_BASE="${SMOKE_API_BASE:-http://127.0.0.1:${API_HOST_PORT:-8060}}"
 OWNER_EMAIL="${SMOKE_OWNER_EMAIL:-owner@atrina.local}"
 OWNER_PASSWORD="${SMOKE_OWNER_PASSWORD:-password}"
 

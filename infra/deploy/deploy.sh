@@ -31,7 +31,7 @@ echo "==> Starting services"
 echo "==> Waiting for API health"
 ATTEMPTS=60
 for ((i=1; i<=ATTEMPTS; i++)); do
-  if curl -fsS "http://127.0.0.1:${API_HOST_PORT:-8080}/up" >/dev/null 2>&1; then
+  if curl -fsS "http://127.0.0.1:${API_HOST_PORT:-8060}/up" >/dev/null 2>&1; then
     echo "API /up OK"
     break
   fi
@@ -51,11 +51,11 @@ echo "==> Caching config/routes"
 "${COMPOSE[@]}" exec -T api php artisan route:cache
 
 echo "==> Readiness check"
-curl -fsS "http://127.0.0.1:${API_HOST_PORT:-8080}/api/v1/health/ready" | tee /tmp/atrina-ready.json
+curl -fsS "http://127.0.0.1:${API_HOST_PORT:-8060}/api/v1/health/ready" | tee /tmp/atrina-ready.json
 echo
 
 echo "Deploy complete."
-echo "  API:       http://127.0.0.1:${API_HOST_PORT:-8080}"
-echo "  Dashboard: http://127.0.0.1:${DASHBOARD_HOST_PORT:-3000}"
+echo "  API:       http://127.0.0.1:${API_HOST_PORT:-8060}"
+echo "  Dashboard: http://127.0.0.1:${DASHBOARD_HOST_PORT:-3060}"
 echo "Next: docker compose -f docker-compose.prod.yml --env-file $ENV_FILE exec api php artisan mvp:seed-products"
 echo "Then: ./infra/deploy/smoke-test.sh"

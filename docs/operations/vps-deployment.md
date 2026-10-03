@@ -27,18 +27,33 @@ PostgreSQL and Redis must already exist in the infrastructure layer. Connection 
 | [`infra/deploy/deploy.sh`](../../infra/deploy/deploy.sh) | Build/up/migrate/health |
 | [`infra/deploy/smoke-test.sh`](../../infra/deploy/smoke-test.sh) | Post-deploy smoke checks |
 
-## First deploy
+## First deploy (after `git pull`)
+
+Host ports default to **API `8060`** and **dashboard `3060`** (container internals stay 8080/3000).
 
 ```bash
-# On your workstation or CI: sync the repo to the VPS, then:
-cp .env.prod.example .env.prod
-# Edit .env.prod — set APP_KEY, DB_*, REDIS_*, URLs
+cd /path/to/atrina-baas   # repo root on the VPS
 
-# Generate APP_KEY once (any machine with PHP/Laravel):
-# php artisan key:generate --show
+git pull
+
+cp -n .env.prod.example .env.prod
+# Edit .env.prod: APP_KEY, DB_*, REDIS_*, YOUR_SERVER_IP → real IP/domain
+# Keep API_HOST_PORT=8060 and DASHBOARD_HOST_PORT=3060
+
+# Generate APP_KEY once if empty:
+# docker run --rm dunglas/frankenphp:1-php8.4-bookworm php -r "echo 'base64:'.base64_encode(random_bytes(32)), PHP_EOL;"
 
 chmod +x infra/deploy/*.sh
 ./infra/deploy/deploy.sh
+```
+
+One-liner without the script (same effect):
+
+```bash
+docker compose -f docker-compose.prod.yml --env-file .env.prod up -d --build
+docker compose -f docker-compose.prod.yml --env-file .env.prod exec -T api php artisan migrate --force
+docker compose -f docker-compose.prod.yml --env-file .env.prod exec -T api php artisan config:cache
+docker compose -f docker-compose.prod.yml --env-file .env.prod exec -T api php artisan route:cache
 ```
 
 `deploy.sh` will:
@@ -85,13 +100,12 @@ With local Compose Postgres/Redis already running on the host:
 
 ```bash
 cp .env.prod.example .env.prod
-# DB_HOST=host.docker.internal REDIS_HOST=host.docker.internal
-# Create a dedicated DB, e.g. atrina_baas_prod
-# APP_URL=http://localhost:8080 FRONTEND_URL=http://localhost:3001
-# NEXT_PUBLIC_API_BASE_URL=http://localhost:8080/api/v1
-# NEXT_PUBLIC_APP_URL=http://localhost:3001
-./infra/deploy/deploy.sh          # Linux / Git Bash
-# or: .\infra\deploy\deploy.ps1  # Windows PowerShell
+# Host ports: API 8060, dashboard 3060
+# DB_HOST / REDIS_HOST = infra hosts
+# APP_URL=http://SERVER_IP:8060 FRONTEND_URL=http://SERVER_IP:3060
+# NEXT_PUBLIC_API_BASE_URL=http://SERVER_IP:8060/api/v1
+# NEXT_PUBLIC_APP_URL=http://SERVER_IP:3060
+./infra/deploy/deploy.sh
 ```
 
 If Docker build fails with `SQLITE_FULL` / disk full, prune unused images first:

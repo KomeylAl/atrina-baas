@@ -31,7 +31,7 @@ docker @compose build
 Write-Host "==> Starting services"
 docker @compose up -d api dashboard scheduler worker
 
-$apiPort = if ($env:API_HOST_PORT) { $env:API_HOST_PORT } else { "8080" }
+$apiPort = if ($env:API_HOST_PORT) { $env:API_HOST_PORT } else { "8060" }
 $ok = $false
 for ($i = 1; $i -le 60; $i++) {
   try {
