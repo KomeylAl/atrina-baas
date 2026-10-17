@@ -1,0 +1,35 @@
+name: atrina-baas
+
+services:
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: atrina-baas:local
+    restart: unless-stopped
+    ports:
+      - "127.0.0.15050:5050"
+    env_file:
+      - deploy/env
+    environment:
+      NODE_ENV: production
+      PORT: "5050"
+    networks:
+      - infrastructure
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:5050/api/health?check=live').then((r)=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 40s
+
+networks:
+  infrastructure:
+    external: true
+    name: ${INFRA_NETWORK:-infrastructure}

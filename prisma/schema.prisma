@@ -1,0 +1,607 @@
+// Atrina BaaS - Prisma schema (Phases 0-6)
+// Full platform: tenancy + project auth + data + billing + storage + notifications + quotas
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================================
+// Platform identity (dashboard users)
+// ============================================================
+model PlatformUser {
+  id              String    @id @default(cuid())
+  email           String    @unique
+  phone           String?
+  passwordHash    String
+  displayName     String?
+  status          String    @default("active")
+  emailVerifiedAt DateTime?
+  phoneVerifiedAt DateTime?
+  lastSignInAt    DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  organizationMembers OrganizationMember[]
+  auditLogs           AuditLog[]            @relation("AuditActor")
+  createdCredentials   ApiCredential[]      @relation("CredentialCreator")
+  createdProjects     Project[]            @relation("ProjectCreator")
+  sessions            UserSession[]
+
+  @@map("platform_users")
+}
+
+model UserSession {
+  id           String   @id @default(cuid())
+  userId       String
+  tokenHash    String   @unique
+  userAgent    String?
+  ipAddress    String?
+  expiresAt    DateTime
+  revokedAt    DateTime?
+  createdAt    DateTime @default(now())
+  lastUsedAt   DateTime @default(now())
+
+  user PlatformUser @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("user_sessions")
+}
+
+// ============================================================
+// Tenancy
+// ============================================================
+model Organization {
+  id        String    @id @default(cuid())
+  name      String
+  slug      String    @unique
+  status    String    @default("active")
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  members  OrganizationMember[]
+  projects Project[]
+
+  @@map("organizations")
+}
+
+model OrganizationMember {
+  id             String   @id @default(cuid())
+  organizationId String
+  userId         String
+  role           String   @default("developer")
+  status         String   @default("active")
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  organization Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user         PlatformUser @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, userId])
+  @@index([userId])
+  @@map("organization_members")
+}
+
+model Project {
+  id             String    @id @default(cuid())
+  organizationId String
+  name           String
+  slug           String
+  description    String?
+  status         String    @default("active")
+  createdById    String
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  deletedAt      DateTime?
+
+  organization Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdBy    PlatformUser   @relation("ProjectCreator", fields: [createdById], references: [id])
+  environments Environment[]
+  auditLogs    AuditLog[]
+  usageEvents  UsageEvent[]
+  products     Product[]
+  entitlements Entitlement[]
+  storageObjects StorageObject[]
+  projectUsers ProjectUser[]
+
+  @@unique([organizationId, slug])
+  @@index([organizationId])
+  @@map("projects")
+}
+
+model Environment {
+  id        String   @id @default(cuid())
+  projectId String
+  name      String
+  slug      String
+  type      String   @default("development")
+  status    String   @default("active")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  project     Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  credentials ApiCredential[]
+
+  projectUsers     ProjectUser[]
+  billingProviders BillingProvider[]
+  dataTables       DataTable[]
+  notificationTemplates NotificationTemplate[]
+  notificationLogs  NotificationLog[]
+  webhookEndpoints  WebhookEndpoint[]
+  quotas           Quota[]
+  storageObjects   StorageObject[]
+
+  @@unique([projectId, slug])
+  @@index([projectId])
+  @@map("environments")
+}
+
+// ============================================================
+// API Credentials
+// ============================================================
+model ApiCredential {
+  id            String    @id @default(cuid())
+  environmentId String
+  name          String
+  keyPrefix     String
+  secretHash    String    @unique
+  kind          String
+  scopes        String?
+  status        String    @default("active")
+  expiresAt     DateTime?
+  lastUsedAt    DateTime?
+  createdById   String
+  createdAt     DateTime  @default(now())
+  revokedAt     DateTime?
+
+  environment Environment     @relation(fields: [environmentId], references: [id], onDelete: Cascade)
+  createdBy   PlatformUser   @relation("CredentialCreator", fields: [createdById], references: [id])
+
+  @@index([environmentId])
+  @@index([status])
+  @@map("api_credentials")
+}
+
+// ============================================================
+// Audit + Usage
+// ============================================================
+model AuditLog {
+  id             String   @id @default(cuid())
+  organizationId String?
+  projectId      String?
+  environmentId  String?
+  actorType      String
+  actorId        String?
+  action         String
+  resourceType   String?
+  resourceId     String?
+  ipAddress      String?
+  userAgent      String?
+  metadata       String?
+  createdAt      DateTime @default(now())
+
+  actor       PlatformUser? @relation("AuditActor", fields: [actorId], references: [id])
+  project     Project?     @relation(fields: [projectId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId])
+  @@index([projectId])
+  @@index([createdAt])
+  @@map("audit_logs")
+}
+
+model UsageEvent {
+  id             String   @id @default(cuid())
+  projectId      String
+  environmentId  String
+  metric         String
+  quantity       Int      @default(1)
+  unit           String   @default("count")
+  source         String   @default("api")
+  idempotencyKey String?
+  occurredAt     DateTime @default(now())
+  createdAt      DateTime @default(now())
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId, environmentId, occurredAt])
+  @@unique([projectId, environmentId, metric, idempotencyKey])
+  @@map("usage_events")
+}
+
+// ============================================================
+// Phase 2: Project users (data plane)
+// ============================================================
+model ProjectUser {
+  id              String    @id @default(cuid())
+  projectId       String
+  environmentId   String
+  email           String?
+  phone           String?
+  passwordHash    String?
+  displayName     String?
+  status          String    @default("active")
+  emailVerifiedAt DateTime?
+  phoneVerifiedAt DateTime?
+  metadata        String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  lastSignInAt    DateTime?
+
+  project     Project     @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  environment Environment @relation(fields: [environmentId], references: [id], onDelete: Cascade)
+  sessions    ProjectSession[]
+  subscriptions Subscription[]
+  purchases    Purchase[]
+
+  @@unique([projectId, environmentId, email])
+  @@index([projectId, environmentId])
+  @@map("project_users")
+}
+
+model ProjectSession {
+  id           String    @id @default(cuid())
+  userId       String
+  tokenHash    String    @unique
+  userAgent    String?
+  ipAddress    String?
+  expiresAt    DateTime
+  revokedAt    DateTime?
+  createdAt    DateTime  @default(now())
+  lastUsedAt   DateTime  @default(now())
+
+  user ProjectUser @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("project_sessions")
+}
+
+// ============================================================
+// Phase 3: Data API
+// ============================================================
+model DataTable {
+  id              String   @id @default(cuid())
+  environmentId   String
+  name            String
+  displayName     String?
+  schemaDefinition String
+  status          String   @default("active")
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  environment Environment @relation(fields: [environmentId], references: [id], onDelete: Cascade)
+  policies   DataPolicy[]
+  records    DataRecord[]
+
+  @@unique([environmentId, name])
+  @@map("data_tables")
+}
+
+model DataPolicy {
+  id              String   @id @default(cuid())
+  dataTableId     String
+  operation       String
+  subject         String
+  policyDefinition String
+  enabled         Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  table DataTable @relation(fields: [dataTableId], references: [id], onDelete: Cascade)
+
+  @@map("data_policies")
+}
+
+model DataRecord {
+  id            String   @id @default(cuid())
+  dataTableId   String
+  environmentId String
+  data          Json
+  ownerUserId   String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  table DataTable @relation(fields: [dataTableId], references: [id], onDelete: Cascade)
+
+  @@index([dataTableId])
+  @@index([environmentId])
+  @@map("data_records")
+}
+
+// ============================================================
+// Phase 4: Billing
+// ============================================================
+model BillingProvider {
+  id                  String   @id @default(cuid())
+  environmentId       String
+  provider            String
+  displayName         String
+  status              String   @default("active")
+  configurationEnc    String
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  environment Environment @relation(fields: [environmentId], references: [id], onDelete: Cascade)
+
+  @@map("billing_providers")
+}
+
+model Product {
+  id          String   @id @default(cuid())
+  projectId   String
+  code        String
+  name        String
+  description String?
+  status      String   @default("active")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  plans   Plan[]
+
+  @@unique([projectId, code])
+  @@map("products")
+}
+
+model Plan {
+  id                   String   @id @default(cuid())
+  productId            String
+  code                 String
+  name                 String
+  billingPeriodUnit    String
+  billingPeriodCount   Int      @default(1)
+  price                Int
+  currency             String   @default("IRR")
+  status               String   @default("active")
+  features             String?
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  product          Product          @relation(fields: [productId], references: [id], onDelete: Cascade)
+  providerProducts ProviderProduct[]
+  subscriptions    Subscription[]
+  purchases        Purchase[]
+  planEntitlements PlanEntitlement[]
+
+  @@unique([productId, code])
+  @@map("plans")
+}
+
+model ProviderProduct {
+  id              String   @id @default(cuid())
+  planId          String
+  provider        String
+  storeProductId  String
+  environmentId   String
+  status          String   @default("active")
+
+  plan Plan @relation(fields: [planId], references: [id], onDelete: Cascade)
+
+  @@map("provider_products")
+}
+
+model Purchase {
+  id                    String    @id @default(cuid())
+  projectId             String
+  environmentId         String
+  projectUserId         String
+  provider              String
+  providerTransactionId String?
+  providerPurchaseToken String?
+  providerProductId      String?
+  planId                String?
+  status                String    @default("pending")
+  amount                Int?
+  currency              String?
+  purchasedAt           DateTime?
+  verifiedAt            DateTime?
+  rawPayload            String?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  user    ProjectUser @relation(fields: [projectUserId], references: [id], onDelete: Cascade)
+  plan    Plan?       @relation(fields: [planId], references: [id])
+
+  @@index([projectId, environmentId])
+  @@index([projectUserId])
+  @@map("purchases")
+}
+
+model Subscription {
+  id                    String    @id @default(cuid())
+  projectId             String
+  environmentId         String
+  projectUserId         String
+  planId                String
+  provider              String
+  status                String    @default("pending")
+  currentPeriodStart    DateTime?
+  currentPeriodEnd      DateTime?
+  cancelAtPeriodEnd     Boolean   @default(false)
+  providerSubscriptionId String?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  user    ProjectUser @relation(fields: [projectUserId], references: [id], onDelete: Cascade)
+  plan    Plan        @relation(fields: [planId], references: [id])
+  events  SubscriptionEvent[]
+
+  @@index([projectId, environmentId])
+  @@index([projectUserId])
+  @@map("subscriptions")
+}
+
+model Entitlement {
+  id          String   @id @default(cuid())
+  projectId   String
+  code        String
+  name        String
+  description String?
+  valueType   String   @default("boolean")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  project        Project          @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  planEntitlements PlanEntitlement[]
+
+  @@unique([projectId, code])
+  @@map("entitlements")
+}
+
+model PlanEntitlement {
+  id            String   @id @default(cuid())
+  planId        String
+  entitlementId String
+  value         String
+
+  plan        Plan        @relation(fields: [planId], references: [id], onDelete: Cascade)
+  entitlement Entitlement @relation(fields: [entitlementId], references: [id], onDelete: Cascade)
+
+  @@unique([planId, entitlementId])
+  @@map("plan_entitlements")
+}
+
+model SubscriptionEvent {
+  id             String    @id @default(cuid())
+  subscriptionId String
+  eventType      String
+  source         String
+  idempotencyKey String?
+  payloadRedacted String?
+  occurredAt     DateTime  @default(now())
+  processedAt    DateTime?
+  createdAt      DateTime  @default(now())
+
+  subscription Subscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+
+  @@index([subscriptionId])
+  @@map("subscription_events")
+}
+
+// ============================================================
+// Phase 5: Storage
+// ============================================================
+model StorageObject {
+  id            String    @id @default(cuid())
+  projectId     String
+  environmentId String
+  key           String
+  fileName      String
+  contentType   String
+  size          Int
+  ownerUserId   String?
+  status        String    @default("active")
+  metadata      String?
+  createdAt     DateTime  @default(now())
+  deletedAt     DateTime?
+
+  project     Project     @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  environment Environment @relation(fields: [environmentId], references: [id], onDelete: Cascade)
+
+  @@index([projectId, environmentId])
+  @@map("storage_objects")
+}
+
+// ============================================================
+// Phase 5: Notifications
+// ============================================================
+model NotificationTemplate {
+  id            String    @id @default(cuid())
+  projectId     String
+  environmentId String
+  channel       String
+  code          String
+  name          String
+  subject       String?
+  body          String
+  status        String    @default("active")
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  environment Environment @relation(fields: [environmentId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, environmentId, channel, code])
+  @@map("notification_templates")
+}
+
+model NotificationLog {
+  id            String    @id @default(cuid())
+  projectId     String
+  environmentId String
+  channel       String
+  provider      String
+  templateCode  String?
+  recipient     String
+  recipientUserId String?
+  status        String    @default("pending")
+  attempts      Int       @default(0)
+  providerMessageId String?
+  errorMessage  String?
+  createdAt     DateTime  @default(now())
+  sentAt        DateTime?
+
+  environment Environment @relation(fields: [environmentId], references: [id], onDelete: Cascade)
+
+  @@index([projectId, environmentId])
+  @@map("notification_logs")
+}
+
+// ============================================================
+// Phase 5: Webhooks
+// ============================================================
+model WebhookEndpoint {
+  id            String    @id @default(cuid())
+  projectId     String
+  environmentId String
+  url           String
+  events        String
+  signingSecret String
+  status        String    @default("active")
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  environment Environment @relation(fields: [environmentId], references: [id], onDelete: Cascade)
+  deliveries WebhookDelivery[]
+
+  @@map("webhook_endpoints")
+}
+
+model WebhookDelivery {
+  id            String    @id @default(cuid())
+  endpointId    String
+  eventType     String
+  payload       String
+  status        String    @default("pending")
+  attempts      Int       @default(0)
+  responseCode  Int?
+  errorMessage   String?
+  createdAt     DateTime  @default(now())
+  deliveredAt   DateTime?
+
+  endpoint WebhookEndpoint @relation(fields: [endpointId], references: [id], onDelete: Cascade)
+
+  @@map("webhook_deliveries")
+}
+
+// ============================================================
+// Phase 6: Quotas
+// ============================================================
+model Quota {
+  id            String    @id @default(cuid())
+  projectId     String
+  environmentId String
+  metric        String
+  limitValue    Int
+  period        String    @default("monthly")
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  environment Environment @relation(fields: [environmentId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, environmentId, metric])
+  @@map("quotas")
+}
