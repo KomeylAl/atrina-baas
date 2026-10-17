@@ -1,35 +1,70 @@
-name: atrina-baas
-
 services:
-  web:
+  migrate:
     build:
       context: .
       dockerfile: Dockerfile
-    image: atrina-baas:local
-    restart: unless-stopped
-    ports:
-      - "127.0.0.1:5050:5050"
-    env_file:
-      - deploy/env
+      target: migrator
+
+    command: npx prisma migrate deploy
+
     environment:
-      NODE_ENV: production
-      PORT: "5050"
+      DATABASE_URL: ${DATABASE_URL}
+
     networks:
       - infrastructure
-    healthcheck:
-      test:
-        [
-          "CMD",
-          "node",
-          "-e",
-          "fetch('http://127.0.0.1:5050/api/health?check=live').then((r)=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
-        ]
-      interval: 30s
-      timeout: 5s
-      retries: 5
-      start_period: 40s
+
+    restart: "no"
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: runner
+
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+    restart: unless-stopped
+
+    ports:
+       - "127.0.0.1:5050:5050"
+
+    environment:
+      NODE_ENV: production
+      PORT: 5050
+      HOSTNAME: 0.0.0.0
+
+      DATABASE_URL: ${DATABASE_URL}
+      # Set COOKIE_SECURE=false only if you serve over plain HTTP (no TLS).
+      COOKIE_SECURE: ${COOKIE_SECURE:-true}
+      UPLOAD_DIR: /app/storage/uploads
+
+    volumes:
+      - ./storage/uploads:/app/storage/uploads
+
+    networks:
+      - infrastructure
+
+  seed:
+    profiles:
+      - seed
+
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: migrator
+
+    command: sh -c "npx prisma migrate deploy && npx tsx prisma/seed.ts"
+
+    environment:
+      DATABASE_URL: ${DATABASE_URL}
+
+    networks:
+      - infrastructure
+
+    restart: "no"
 
 networks:
   infrastructure:
     external: true
-    name: ${INFRA_NETWORK:-infrastructure}
