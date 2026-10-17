@@ -68,7 +68,7 @@ ENV NEXT_TELEMETRY_DISABLED=1
 ENV PORT=5050
 ENV HOSTNAME=0.0.0.0
 
-RUN apk add --no-cache libc6-compat
+RUN apk add --no-cache libc6-compat openssl
 
 RUN addgroup -S nodejs \
  && adduser -S nextjs -G nodejs
@@ -77,8 +77,9 @@ COPY --from=builder --chown=nextjs:nodejs /app/public ./public
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 
-# Custom Prisma client output (src/generated) is imported at runtime
-COPY --from=builder --chown=nextjs:nodejs /app/src/generated ./src/generated
+# prisma-client-js writes the generated client to node_modules/.prisma, not src/generated.
+COPY --from=builder --chown=nextjs:nodejs /app/node_modules/.prisma ./node_modules/.prisma
+COPY --from=builder --chown=nextjs:nodejs /app/node_modules/@prisma/client ./node_modules/@prisma/client
 
 RUN mkdir -p /app/storage/uploads \
  && chown -R nextjs:nodejs /app/storage
